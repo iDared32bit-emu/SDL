@@ -278,6 +278,10 @@
 
 - (void)swapBuffers
 {
+    if ([EAGLContext currentContext] != context) {
+        [EAGLContext setCurrentContext:context];
+    }
+
     if (msaaFramebuffer) {
         const GLenum attachments[] = {GL_COLOR_ATTACHMENT0};
 
@@ -310,6 +314,7 @@
     /* viewRenderbuffer should always be bound here. Code that binds something
      * else is responsible for rebinding viewRenderbuffer, to reduce duplicate
      * state changes. */
+    glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
     [context presentRenderbuffer:GL_RENDERBUFFER];
 }
 

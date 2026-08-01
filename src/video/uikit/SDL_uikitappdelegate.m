@@ -64,9 +64,17 @@ int SDL_UIKitRunApp(int argc, char *argv[], SDL_main_func mainFunction)
     }
     forward_argv[i] = NULL;
 
-    /* Give over control to run loop, SDLUIKitDelegate will handle most things from here */
+    /* Give over control to run loop, the UIKit delegate will handle most things from here */
     @autoreleasepool {
-        UIApplicationMain(argc, argv, nil, [SDLUIKitDelegate getAppDelegateClassName]);
+        NSString *delegateClassName = nil;
+
+        if (@available(iOS 13.0, tvOS 13.0, *)) {
+            delegateClassName = [SDLUIKitSceneDelegate getSceneDelegateClassName];
+        }
+        if (!delegateClassName) {
+            delegateClassName = [SDLUIKitDelegate getAppDelegateClassName];
+        }
+        UIApplicationMain(argc, argv, nil, delegateClassName);
     }
 
     /* free the memory we used to hold copies of argc and argv */
@@ -341,6 +349,156 @@ SDL_LoadLaunchImageNamed(NSString *name, int screenh)
     return UIInterfaceOrientationMaskAll;
 }
 #endif /* !TARGET_OS_TV */
+
+@end
+
+@implementation SDLUIKitSceneDelegate {
+    UIWindow *launchWindow;
+}
+
++ (NSString *)getSceneDelegateClassName
+{
+    return @"SDLUIKitSceneDelegate";
+}
+
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions
+{
+    if (![scene isKindOfClass:[UIWindowScene class]]) {
+        return;
+    }
+
+    UIWindowScene *windowScene = (UIWindowScene *)scene;
+    windowScene.delegate = self;
+    NSBundle *bundle = [NSBundle mainBundle];
+
+#if SDL_IPHONE_LAUNCHSCREEN
+    UIViewController *vc = nil;
+    NSString *screenname = nil;
+
+#if !TARGET_OS_TV
+    screenname = [bundle objectForInfoDictionaryKey:@"UILaunchStoryboardName"];
+
+    if (screenname) {
+        @try {
+            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:screenname bundle:bundle];
+            __auto_type storyboardVc = [storyboard instantiateInitialViewController];
+            vc = [[SDLLaunchStoryboardViewController alloc] initWithStoryboardViewController:storyboardVc];
+        }
+        @catch (NSException *exception) {
+        }
+    }
+#endif
+
+    if (vc == nil) {
+        vc = [[SDLLaunchScreenController alloc] initWithNibName:screenname bundle:bundle];
+    }
+
+    if (vc.view) {
+        launchWindow = [[UIWindow alloc] initWithWindowScene:windowScene];
+        launchWindow.frame = windowScene.coordinateSpace.bounds;
+        launchWindow.windowLevel = UIWindowLevelNormal + 1.0;
+        launchWindow.hidden = NO;
+        launchWindow.rootViewController = vc;
+    }
+#endif
+
+    [[NSFileManager defaultManager] changeCurrentDirectoryPath:[bundle resourcePath]];
+
+    for (NSUserActivity *activity in connectionOptions.userActivities) {
+        if (activity.webpageURL) {
+            [self sendDropFileForURL:activity.webpageURL];
+        }
+    }
+    for (UIOpenURLContext *urlContext in connectionOptions.URLContexts) {
+        [self sendDropFileForURL:urlContext.URL];
+    }
+
+    SDL_AddHintCallback(SDL_HINT_IDLE_TIMER_DISABLED,
+                        SDL_IdleTimerDisabledChanged, NULL);
+
+    SDL_SetMainReady();
+    [self performSelector:@selector(postFinishLaunch) withObject:nil afterDelay:0.0];
+}
+
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts
+{
+    for (UIOpenURLContext *context in URLContexts) {
+        [self sendDropFileForURL:context.URL];
+    }
+}
+
+#if !TARGET_OS_TV
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(27.0))
+{
+    for (UIWindow *window in windowScene.windows) {
+        if (window.hidden || window.alpha == 0.0) {
+            continue;
+        }
+        if ([window.accessibilityIdentifier isEqualToString:@"touchHLE.gameControls"]) {
+            return [window.rootViewController supportedInterfaceOrientations];
+        }
+    }
+    for (UIWindow *window in windowScene.windows) {
+        if (window.hidden || window.alpha == 0.0) {
+            continue;
+        }
+        if ([window.rootViewController isKindOfClass:[SDL_uikitviewcontroller class]]) {
+            return [window.rootViewController supportedInterfaceOrientations];
+        }
+    }
+    return UIInterfaceOrientationMaskAll;
+}
+#endif
+
+- (void)sendDropFileForURL:(NSURL *)url
+{
+    NSURL *fileURL = url.filePathURL;
+    if (fileURL != nil) {
+        SDL_SendDropFile(NULL, fileURL.path.UTF8String);
+    } else {
+        SDL_SendDropFile(NULL, url.absoluteString.UTF8String);
+    }
+    SDL_SendDropComplete(NULL);
+}
+
+- (void)hideLaunchScreen
+{
+    UIWindow *window = launchWindow;
+
+    if (!window || window.hidden) {
+        return;
+    }
+
+    launchWindow = nil;
+
+    [UIView animateWithDuration:0.2 animations:^{
+        window.alpha = 0.0;
+    } completion:^(BOOL finished) {
+        window.hidden = YES;
+        UIKit_ForceUpdateHomeIndicator();
+    }];
+}
+
+- (void)postFinishLaunch
+{
+    [self performSelector:@selector(hideLaunchScreen) withObject:nil afterDelay:0.0];
+
+    SDL_iPhoneSetEventPump(SDL_TRUE);
+    exit_status = forward_main(forward_argc, forward_argv);
+    SDL_iPhoneSetEventPump(SDL_FALSE);
+
+    if (launchWindow) {
+        launchWindow.hidden = YES;
+        launchWindow = nil;
+    }
+}
+
+- (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options
+{
+    UISceneConfiguration *configuration = [[UISceneConfiguration alloc] initWithName:@"SDLSceneConfiguration" sessionRole:connectingSceneSession.role];
+    configuration.delegateClass = [SDLUIKitSceneDelegate class];
+    return configuration;
+}
 
 @end
 

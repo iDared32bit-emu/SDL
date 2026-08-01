@@ -209,7 +209,7 @@
 #define SDL_IPHONE_KEYBOARD 1
 
 /* enable iOS extended launch screen */
-#define SDL_IPHONE_LAUNCHSCREEN 1
+#define SDL_IPHONE_LAUNCHSCREEN 0
 
 /* enable filesystem support */
 #define SDL_FILESYSTEM_COCOA   1

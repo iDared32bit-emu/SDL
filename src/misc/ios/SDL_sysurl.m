@@ -29,8 +29,15 @@ SDL_SYS_OpenURL(const char *url)
 
     NSString *nsstr = [NSString stringWithUTF8String:url];
     NSURL *nsurl = [NSURL URLWithString:nsstr];
+    if (!nsurl) {
+        return -1;
+    }
+
+    if (@available(iOS 10.0, tvOS 10.0, *)) {
+        [[UIApplication sharedApplication] openURL:nsurl options:@{} completionHandler:nil];
+        return 0;
+    }
     return [[UIApplication sharedApplication] openURL:nsurl] ? 0 : -1;
 }}
 
 /* vi: set ts=4 sw=4 expandtab: */
-

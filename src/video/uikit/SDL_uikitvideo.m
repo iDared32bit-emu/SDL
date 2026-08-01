@@ -208,6 +208,12 @@ UIKit_ComputeViewFrame(SDL_Window *window, UIScreen *screen)
      * is used on an iPad. */
     if (data != nil && data.uiwindow != nil) {
         frame = data.uiwindow.bounds;
+
+        if (@available(iOS 13.0, tvOS 13.0, *)) {
+            if (data.uiwindow.windowScene != nil) {
+                return frame;
+            }
+        }
     }
 
 #if !TARGET_OS_TV
