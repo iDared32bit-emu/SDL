@@ -123,6 +123,13 @@ int UIKit_GL_SwapWindow(_THIS, SDL_Window * window)
         SDL_UIKit_UpdateBatteryMonitoring();
 #endif
 
+        /* Make the presenting context's view the window's on-screen view before
+         * swapping, so the on-screen view tracks whichever context actually
+         * presents a frame (rather than whichever was most recently made
+         * current). This is what keeps touchHLE's internal compositor context's
+         * view on screen across guest make-currents that don't swap. */
+        [context.sdlView presentAsWindowView];
+
         [context.sdlView swapBuffers];
 
         /* You need to pump events in order for the OS to make changes visible.

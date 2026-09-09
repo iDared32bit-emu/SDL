@@ -148,6 +148,41 @@ extern int SDL_AppleTVRemoteOpenedAsJoystick;
     sdlwindow = window;
 }
 
+/* Make this view the window's currently-presented (on-screen) view, if it
+ * isn't already. Called from the GL SwapWindow path so the on-screen view
+ * tracks whichever context most recently presented a frame. touchHLE
+ * alternates every frame between the guest app's GL context/view and its
+ * internal compositor context/view; only the context that actually swaps
+ * should be shown, and it must stay shown while the other context is merely
+ * made current (which does not swap). Promoting on make-current instead would
+ * flip the on-screen view every frame and race the display. */
+- (void)presentAsWindowView
+{
+    SDL_WindowData *data = nil;
+
+    if (sdlwindow == NULL) {
+        return;
+    }
+
+    data = (__bridge SDL_WindowData *) sdlwindow->driverdata;
+    if (data.viewcontroller.view == self) {
+        return;
+    }
+
+    /* Move to the top of the window's view list and become the view
+     * controller's on-screen view. Mirrors setSDLWindow:'s attach path. */
+    [data.views removeObject:self];
+    [data.views addObject:self];
+
+    [data.viewcontroller.view removeFromSuperview];
+    data.viewcontroller.view = self;
+
+    data.uiwindow.rootViewController = nil;
+    data.uiwindow.rootViewController = data.viewcontroller;
+
+    [data.uiwindow layoutIfNeeded];
+}
+
 #if !TARGET_OS_TV && defined(__IPHONE_13_4)
 - (UIPointerRegion *)pointerInteraction:(UIPointerInteraction *)interaction regionForRequest:(UIPointerRegionRequest *)request defaultRegion:(UIPointerRegion *)defaultRegion API_AVAILABLE(ios(13.4)){
     if (request != nil && !SDL_GCMouseRelativeMode()) {
