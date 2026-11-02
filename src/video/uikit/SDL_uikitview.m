@@ -174,6 +174,9 @@ extern int SDL_AppleTVRemoteOpenedAsJoystick;
     [data.views removeObject:self];
     [data.views addObject:self];
 
+#if SDL_IPHONE_KEYBOARD
+    [data.viewcontroller keepKeyboardInWindow];
+#endif
     [data.viewcontroller.view removeFromSuperview];
     data.viewcontroller.view = self;
 

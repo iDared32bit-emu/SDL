@@ -67,6 +67,7 @@
 #if SDL_IPHONE_KEYBOARD
 - (void)showKeyboard;
 - (void)hideKeyboard;
+- (void)keepKeyboardInWindow;
 - (void)initKeyboard;
 - (void)deinitKeyboard;
 

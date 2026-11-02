@@ -320,7 +320,11 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 {
     [super setView:view];
 
-    [view addSubview:textField];
+    /* While typing, the text field stays where keepKeyboardInWindow put it:
+     * leaving the window would hide the keyboard. */
+    if (!textField.isFirstResponder) {
+        [view addSubview:textField];
+    }
 
     if (keyboardVisible) {
         [self showKeyboard];
@@ -355,6 +359,15 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
         showingKeyboard = YES;
         [textField becomeFirstResponder];
         showingKeyboard = NO;
+    }
+}
+
+/* Moves the text field out of the view about to be swapped out, so the
+ * keyboard stays up. */
+- (void)keepKeyboardInWindow
+{
+    if (textField.isFirstResponder) {
+        [textField.window addSubview:textField];
     }
 }
 
